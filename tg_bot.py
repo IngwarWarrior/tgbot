@@ -114,8 +114,10 @@ async def help_message(update, context):
     if not Game.users.get(update.effective_user, False):
         await update.message.reply_text('Сначала введите /start !')
     else:
-        await context.bot.send_photo(update.message.chat_id, open('not_finished.png', mode='rb'),
-                                     caption='Идут работы. Скоро что-то будет...',
+        await context.bot.reply_text('''Этот бот - текстовая RPG игра.
+Используйте доступные команды, чтоюы управлять персонажем.
+Используйте /about чтобы увидеть характеристики своего персонажа.
+Все доступные сейчас команды показаны вам.''',
                                      reply_markup=Game.users.get(update.effective_user).last_markup)
 
 
@@ -238,7 +240,11 @@ async def battle(update, context):
                     context.user_data.clear()
                     await update.message.reply_text('''Кажется вы недооценили врага...\n
 Вас сразили! Придется отлежаться и восстановиться.
-Вы теряете половину накоплений''')
+Вы теряете половину накоплений''', reply_markup=menu_markup)
+                    a.cds = [0, 0]
+                    a.ser_lvl = 1
+                    a.ser_hp = 0
+                    a.last_markup = menu_markup
                 else:
                     await update.message.reply_text(
                         f'''Здоровье врага: {context.user_data['enemy'][1]}/{context.user_data['enemy'][0].max_hp}\n
@@ -286,7 +292,7 @@ async def story_start(update, context):
     if context.user_data:
         await update.message.reply_text('Сейчас вы не можете начать сюжетное сражение')
     else:
-        if Game.story[update.effective_user][0] >= 5:
+        if Game.story[update.effective_user][0] > Game.max_story:
             await update.message.reply_text('Вы прошли сюжет! Спасибо за игру!')
         else:
             f = open(f'{Game.story[update.effective_user][0]}.txt', mode='r', encoding='utf8')
@@ -430,6 +436,9 @@ async def skill_shop(update, context):
 async def run_away(update, context):
     await update.message.reply_text(f'''Вы сбежали!''', reply_markup=menu_markup)
     Game.users.get(update.effective_user).last_markup = menu_markup
+    Game.users.get(update.effective_user).cds = [0, 0]
+    Game.users.get(update.effective_user).ser_lvl = 1
+    Game.users.get(update.effective_user).ser_hp = 0
     context.user_data.clear()
     return 1
 
