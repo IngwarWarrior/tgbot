@@ -25,6 +25,7 @@ class Enemy:
 class Game:
     users = {}
     story = {}
+    max_story = 5
 
     def __init__(self):
         pass
@@ -99,6 +100,7 @@ class Player:
         self.xp = 0
         self.max_xp = self.lvl * 10
         self.ser_lvl = 1
+        self.ser_hp = 0
         self.max_hp = 100
         self.cds = [0, 0]
         self.equipment = {'wp': Equipment(0, 0, 0, 0, 'wp', 'Старый меч', 0),
@@ -225,9 +227,11 @@ async def battle(update, context):
 Ваше здоровье: {a.hp}/{a.max_hp}''', reply_markup=battle_markup)
                 Game.users.get(update.effective_user).last_markup = battle_markup
             else:
-                a.hp -= max(0, int((context.user_data['enemy'][0].av_dmg + random.randint(
+                damage = max(0, int((context.user_data['enemy'][0].av_dmg + random.randint(
                     -int(context.user_data['enemy'][0].max_hp * 0.05),
                     int(context.user_data['enemy'][0].max_hp * 0.05))) * (100 - eq_buffs[1]) / 100))
+                a.hp -= damage
+                a.ser_hp += damage
                 if a.hp <= 0:
                     a.money = a.money // 2
                     a.hp = a.max_hp
@@ -240,6 +244,12 @@ async def battle(update, context):
                         f'''Здоровье врага: {context.user_data['enemy'][1]}/{context.user_data['enemy'][0].max_hp}\n
 Он бьёт вас в ответ!\n
 Ваше здоровье: {a.hp}/{a.max_hp}''', reply_markup=battle_markup)
+                    if a.ser_hp >= 100:
+                        a.ser_hp -= 100
+                        a.ser_lvl += 1
+                        await update.message.reply_text('''В таком бою шутить не стоит.
+Вы стали серьёзнее!
+Ваш урон увеличился в 1.5 раз!''')
                     Game.users.get(update.effective_user).last_markup = battle_markup
             return 1
         elif context.user_data['enemy'][1] <= 0:
@@ -250,6 +260,8 @@ async def battle(update, context):
                                    context.user_data['enemy'][0].lvl * 3) + random.randint(0, a.xp)
             a.hp = min(a.max_hp, a.hp + a.max_hp // 2)
             a.cds = [0, 0]
+            a.ser_lvl = 1
+            a.ser_hp = 0
             await update.message.reply_text(f'''Вы победили врага {context.user_data['enemy'][0].name}!\n
 У вас {a.xp}/{a.max_xp} опыта от уровня {a.lvl + 1}
 Вы получили {gm} монет
@@ -274,29 +286,32 @@ async def story_start(update, context):
     if context.user_data:
         await update.message.reply_text('Сейчас вы не можете начать сюжетное сражение')
     else:
-        f = open(f'{Game.story[update.effective_user][0]}.txt', mode='r', encoding='utf8')
-        txt = f.readlines()
-        start_text = []
-        for i in range(len(txt)):
-            if txt[i][:5] != 'stats':
-                start_text.append(txt[i][:-1])
-            else:
-                break
-        en_inf = txt[i][7:].split()
-        enemy = Enemy(en_inf[0], int(en_inf[1]), int(en_inf[2]), 1)
-        if not Game.story[update.effective_user][1]:
-            context.user_data['story'] = True
-            Game.story[update.effective_user][1] = True
-            for i in start_text:
-                await update.message.reply_text(i)
-        context.user_data['enemy'] = [enemy, enemy.max_hp]
+        if Game.story[update.effective_user][0] >= 5:
+            await update.message.reply_text('Вы прошли сюжет! Спасибо за игру!')
+        else:
+            f = open(f'{Game.story[update.effective_user][0]}.txt', mode='r', encoding='utf8')
+            txt = f.readlines()
+            start_text = []
+            for i in range(len(txt)):
+                if txt[i][:5] != 'stats':
+                    start_text.append(txt[i][:-1])
+                else:
+                    break
+            en_inf = txt[i][7:].split(';')
+            enemy = Enemy(en_inf[0], int(en_inf[1]), int(en_inf[2]), 1)
+            if not Game.story[update.effective_user][1]:
+                context.user_data['story'] = True
+                Game.story[update.effective_user][1] = True
+                for i in start_text:
+                    await update.message.reply_text(i)
+            context.user_data['enemy'] = [enemy, enemy.max_hp]
 
-        f.close()
-        await update.message.reply_text(f'''Тебе встретился {enemy.name}! Что ты будешь делать?
+            f.close()
+            await update.message.reply_text(f'''Тебе встретился {enemy.name}! Что ты будешь делать?
 Здоровье врага: {context.user_data['enemy'][1]}/{context.user_data['enemy'][0].max_hp}''', reply_markup=battle_markup)
-        Game.users.get(update.effective_user).last_markup = battle_markup
-        context.user_data['is_started'] = True
-        await battle(update, context)
+            Game.users.get(update.effective_user).last_markup = battle_markup
+            context.user_data['is_started'] = True
+            await battle(update, context)
 
 
 async def story_end(update, context):
