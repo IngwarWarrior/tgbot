@@ -145,7 +145,7 @@ async def message(update, context):
             if update.message.text in ['Атаковать', 'Сбежать', 'Бой', 'Навык 1', 'Навык 2', 'Применить навык',
                                        'Отменить навык']:
                 if update.message.text == 'Бой':
-                    if context.user_data.get('shop', False):
+                    if context.user_data.get('shop', False) or context.user_data.get('skill_shop', False):
                         await update.message.reply_text('Цены может и высокие, но не настолько же!')
                     elif not context.user_data.get('is_started', False):
                         context.user_data['is_started'] = True
@@ -170,6 +170,8 @@ async def message(update, context):
                     update.message.text in ['1', '2', '3', 'Заменить первый навык',
                                             'Заменить второй навык'] and context.user_data.get('skill_shop')):
                 await skill_shop(update, context)
+            else:
+                await update.message.reply_text('Сейчас данная команда недоступна')
         else:
             await update.message.reply_text('Извините, я вас не понял')
     return 1
@@ -277,15 +279,18 @@ async def battle(update, context):
             Game.users.get(update.effective_user).last_markup = menu_markup
             context.user_data.clear()
             if a.xp >= a.max_xp:
-                a.lvl += 1
-                a.xp -= a.max_xp
-                a.max_xp = a.lvl * 10
-                a.max_hp = (5 + a.lvl // 10) * 20
-                a.hp = a.max_hp
-                a.dmg += 2
-                await update.message.reply_text(f'''Поздравляем! Вы достигли уровня {a.lvl}!
+                if a.lvl < 25:
+                    a.lvl += 1
+                    a.xp -= a.max_xp
+                    a.max_xp = a.lvl * 10
+                    a.max_hp = (5 + a.lvl // 5) * 20
+                    a.hp = a.max_hp
+                    a.dmg += 2
+                    await update.message.reply_text(f'''Поздравляем! Вы достигли уровня {a.lvl}!
 Урон: {a.dmg - 2} -> {a.dmg}
 {a.xp}/{a.max_xp} опыта от уровня {a.lvl + 1}''')
+                else:
+                    await update.message.reply_text('У вас максимальный уровень!')
 
 
 async def story_start(update, context):
@@ -364,6 +369,9 @@ async def shop(update, context):
         if context.user_data.get('is_started', False):
             await update.message.reply_text('Вряд ли соперник тебе что-то продаст...')
             return
+        elif context.user_data:
+            await update.message.reply_text('Сейчас вы не можете воспользоваться Лавкой.')
+            return
         a = Game.users.get(update.effective_user)
         goods = random.choices(list(Equipment.equipment.keys()), k=3)
         context.user_data['shop'] = [[Equipment.equipment[goods[0]], False],
@@ -415,6 +423,9 @@ async def skill_shop(update, context):
         if context.user_data.get('is_started', False):
             await update.message.reply_text('Вряд ли ваш соперник поделится навыками...')
             return
+        elif context.user_data:
+            await update.message.reply_text('Сейчас вы не можете воспользоваться услугами Мудреца.')
+            return
         a = Game.users.get(update.effective_user)
         goods = random.choices(list(Skill.skills.keys()), k=3)
         context.user_data['skill_shop'] = [[[Skill.skills[goods[0]], False],
@@ -439,6 +450,7 @@ async def run_away(update, context):
     Game.users.get(update.effective_user).cds = [0, 0]
     Game.users.get(update.effective_user).ser_lvl = 1
     Game.users.get(update.effective_user).ser_hp = 0
+    Game.users.get(update.effective_user).hp = min(int(Game.users.get(update.effective_user).hp * 1.25), Game.users.get(update.effective_user).max_hp)
     context.user_data.clear()
     return 1
 
